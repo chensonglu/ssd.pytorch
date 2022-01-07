@@ -5,6 +5,31 @@ from torch.autograd import Variable
 from layers import *
 from data import carplate, change_cfg_for_ssd512
 import os
+import time
+
+class Timer(object):
+    """A simple timer."""
+    def __init__(self):
+        self.total_time = 0.
+        self.calls = 0
+        self.start_time = 0.
+        self.diff = 0.
+        self.average_time = 0.
+
+    def tic(self):
+        # using time.time instead of time.clock because time time.clock
+        # does not normalize for multithreading
+        self.start_time = time.time()
+
+    def toc(self, average=True):
+        self.diff = time.time() - self.start_time
+        self.total_time += self.diff
+        self.calls += 1
+        self.average_time = self.total_time / self.calls
+        if average:
+            return self.average_time
+        else:
+            return self.diff
 
 
 class SSD_only_four_corners(nn.Module):
@@ -69,6 +94,8 @@ class SSD_only_four_corners(nn.Module):
                     2: localization layers, Shape: [batch,num_priors*4]
                     3: priorbox layers, Shape: [2,num_priors*4]
         """
+        _t = {'im_detect': Timer(), 'misc': Timer()}
+        _t['im_detect'].tic()
         sources = list()
         conf = list()
         four_corners = list()
@@ -99,6 +126,8 @@ class SSD_only_four_corners(nn.Module):
 
         conf = torch.cat([o.view(o.size(0), -1) for o in conf], 1)
         four_corners = torch.cat([o.view(o.size(0), -1) for o in four_corners], 1)
+        detect_time = _t['im_detect'].toc(average=False)
+        print("ssd forward detect_time: " + str(detect_time))
         if self.phase == "test":
             output = self.detect(
                 self.softmax(conf.view(conf.size(0), -1,
