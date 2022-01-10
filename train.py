@@ -156,7 +156,6 @@ def train():
                            target_transform=CARPLATEAnnotationTransform(keep_difficult=True),
                            dataset_name='test')
 
-
     if args.visdom:
         import visdom
         global viz
@@ -370,4 +369,3 @@ def update_vis_plot(iteration, loc, conf, window1, window2, update_type,
 
 if __name__ == '__main__':
     train()
-

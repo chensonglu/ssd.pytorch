@@ -85,7 +85,7 @@ def train():
     if args.dataset == 'CARPLATE_FOUR_CORNERS':
         cfg = mobilenet_carplate
         if args.input_size == 512:
-            cfg = change_cfg_for_ssd512(cfg)
+            cfg = change_cfg_for_ssd512_mobilenet(cfg)
         dataset = CARPLATE_FOUR_CORNERSDetection(root=args.dataset_root,
                                     transform=SSDAugmentation_four_corners(cfg['min_dim'],
                                                          MEANS),
@@ -164,7 +164,7 @@ def train():
                                   num_workers=args.num_workers,
                                   shuffle=True, collate_fn=detection_collate,
                                   pin_memory=True)
-    
+
     lr = args.lr
     # create batch iterator
     batch_iterator = iter(data_loader)
@@ -219,7 +219,7 @@ def train():
 
         if args.visdom:
             update_vis_plot(iteration, loss_l.item(), loss_c.item(), loss_four_corners.item(),
-            iter_plot, epoch_plot, 'append')
+                            iter_plot, epoch_plot, 'append')
 
         if iteration != 0 and iteration % 5000 == 0:
             print('Saving state, iter:', iteration)
