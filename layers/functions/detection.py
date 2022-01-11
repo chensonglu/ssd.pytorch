@@ -150,18 +150,19 @@ class Detect_four_corners(Function):
     scores and threshold to a top_k number of output predictions for both
     confidence score and locations.
     """
-    def __init__(self, num_classes, bkg_label, top_k, conf_thresh, nms_thresh):
-        self.num_classes = num_classes
-        self.background_label = bkg_label
-        self.top_k = top_k
-        # Parameters used in nms.
-        self.nms_thresh = nms_thresh
-        if nms_thresh <= 0:
-            raise ValueError('nms_threshold must be non negative.')
-        self.conf_thresh = conf_thresh
-        self.variance = cfg['variance']
+    # def __init__(self, num_classes, bkg_label, top_k, conf_thresh, nms_thresh):
+    #     self.num_classes = num_classes
+    #     self.background_label = bkg_label
+    #     self.top_k = top_k
+    #     # Parameters used in nms.
+    #     self.nms_thresh = nms_thresh
+    #     if nms_thresh <= 0:
+    #         raise ValueError('nms_threshold must be non negative.')
+    #     self.conf_thresh = conf_thresh
+    #     self.variance = cfg['variance']
 
-    def forward(self, loc_data, conf_data, prior_data, four_corners_data):
+    @staticmethod
+    def forward(self, num_classes, bkg_label, top_k, conf_thresh, nms_thresh, loc_data, conf_data, prior_data, four_corners_data):
         """
         Args:
             loc_data: (tensor) Loc preds from loc layers
@@ -173,6 +174,16 @@ class Detect_four_corners(Function):
             four_corners_data: (tensor) Four corners preds from four_corners layers
                 Shape: [batch,num_priors,8]
         """
+        self.num_classes = num_classes
+        self.background_label = bkg_label
+        self.top_k = top_k
+        # Parameters used in nms.
+        self.nms_thresh = nms_thresh
+        if nms_thresh <= 0:
+            raise ValueError('nms_threshold must be non negative.')
+        self.conf_thresh = conf_thresh
+        self.variance = cfg['variance']
+
         num = loc_data.size(0)  # batch size
         num_priors = prior_data.size(0)
         output = torch.zeros(num, self.num_classes, self.top_k, 13)
@@ -218,18 +229,18 @@ class Detect_only_four_corners(Function):
     scores and threshold to a top_k number of output predictions for both
     confidence score and locations.
     """
-    def __init__(self, num_classes, bkg_label, top_k, conf_thresh, nms_thresh):
-        self.num_classes = num_classes
-        self.background_label = bkg_label
-        self.top_k = top_k
-        # Parameters used in nms.
-        self.nms_thresh = nms_thresh
-        if nms_thresh <= 0:
-            raise ValueError('nms_threshold must be non negative.')
-        self.conf_thresh = conf_thresh
-        self.variance = cfg['variance']
-
-    def forward(self, conf_data, prior_data, four_corners_data):
+    # def __init__(self, num_classes, bkg_label, top_k, conf_thresh, nms_thresh):
+    #     self.num_classes = num_classes
+    #     self.background_label = bkg_label
+    #     self.top_k = top_k
+    #     # Parameters used in nms.
+    #     self.nms_thresh = nms_thresh
+    #     if nms_thresh <= 0:
+    #         raise ValueError('nms_threshold must be non negative.')
+    #     self.conf_thresh = conf_thresh
+    #     self.variance = cfg['variance']
+    @staticmethod
+    def forward(self, num_classes, bkg_label, top_k, conf_thresh, nms_thresh, conf_data, prior_data, four_corners_data):
         """
         Args:
             loc_data: (tensor) Loc preds from loc layers
@@ -241,6 +252,15 @@ class Detect_only_four_corners(Function):
             four_corners_data: (tensor) Four corners preds from four_corners layers
                 Shape: [batch,num_priors,8]
         """
+        self.num_classes = num_classes
+        self.background_label = bkg_label
+        self.top_k = top_k
+        # Parameters used in nms.
+        self.nms_thresh = nms_thresh
+        if nms_thresh <= 0:
+            raise ValueError('nms_threshold must be non negative.')
+        self.conf_thresh = conf_thresh
+        self.variance = cfg['variance']
         num = conf_data.size(0)  # batch size
         num_priors = prior_data.size(0)
         output = torch.zeros(num, self.num_classes, self.top_k, 13)

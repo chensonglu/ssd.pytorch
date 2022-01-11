@@ -48,7 +48,7 @@ class SSD_mobilenet_four_corners(nn.Module):
 
         if phase == 'test':
             self.softmax = nn.Softmax(dim=-1)
-            self.detect = Detect_four_corners(num_classes, 0, 200, 0.01, 0.45)
+            self.detect = Detect_four_corners()
 
     def forward(self, x):
         """Applies network layers and ops on input image(s) x.
@@ -99,7 +99,7 @@ class SSD_mobilenet_four_corners(nn.Module):
         conf = torch.cat([o.view(o.size(0), -1) for o in conf], 1)
         four_corners = torch.cat([o.view(o.size(0), -1) for o in four_corners], 1)
         if self.phase == "test":
-            output = self.detect(
+            output = self.detect.apply(self.num_classes, 0, 200, 0.01, 0.45,
                 loc.view(loc.size(0), -1, 4),                   # loc preds
                 self.softmax(conf.view(conf.size(0), -1,
                              self.num_classes)),                # conf preds
