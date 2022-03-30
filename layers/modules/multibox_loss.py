@@ -67,7 +67,7 @@ class MultiBoxLoss(nn.Module):
 
     def __init__(self, num_classes, overlap_thresh, prior_for_matching,
                  bkg_label, neg_mining, neg_pos, neg_overlap, encode_target,
-                 use_gpu=True):
+                 use_gpu=True, loss_name='SmoothL1'):
         super(MultiBoxLoss, self).__init__()
         self.use_gpu = use_gpu
         self.num_classes = num_classes
@@ -79,6 +79,11 @@ class MultiBoxLoss(nn.Module):
         self.negpos_ratio = neg_pos
         self.neg_overlap = neg_overlap
         self.variance = cfg['variance']
+        self.loss = loss_name
+        self.pred_mode = 'Center'
+        self.iou_loss = IouLoss(pred_mode=self.pred_mode, size_sum=True, variances=self.variance, losstype=self.loss)
+        if self.loss != 'SmoothL1' or self.loss != 'Ciou':
+            assert Exception("loss name must be SmoothL1 or Ciou")
 
     def forward(self, predictions, targets):
         """Multibox Loss
@@ -105,8 +110,12 @@ class MultiBoxLoss(nn.Module):
             truths = targets[idx][:, :-1].data
             labels = targets[idx][:, -1].data
             defaults = priors.data
-            match(self.threshold, truths, defaults, self.variance, labels,
-                  loc_t, conf_t, idx)
+            if self.loss == 'SmoothL1':
+                match(self.threshold, truths, defaults, self.variance, labels,
+                    loc_t, conf_t, idx)
+            else:
+                match_ious(self.threshold, truths, defaults, self.variance, labels,
+                    loc_t, conf_t, idx)
         if self.use_gpu:
             loc_t = loc_t.cuda()
             conf_t = conf_t.cuda()
@@ -122,7 +131,11 @@ class MultiBoxLoss(nn.Module):
         pos_idx = pos.unsqueeze(pos.dim()).expand_as(loc_data)
         loc_p = loc_data[pos_idx].view(-1, 4)
         loc_t = loc_t[pos_idx].view(-1, 4)
-        loss_l = F.smooth_l1_loss(loc_p, loc_t, size_average=False)
+        if self.loss == 'SmoothL1':
+            loss_l = F.smooth_l1_loss(loc_p, loc_t, size_average=False)
+        else:
+            ciou_priors = priors.data.unsqueeze(0).expand_as(loc_data)
+            loss_l = self.iou_loss(loc_p, loc_t, ciou_priors[pos_idx].view(-1, 4))
 
         # Compute max conf across batch for hard negative mining
         batch_conf = conf_data.view(-1, self.num_classes)
@@ -147,7 +160,10 @@ class MultiBoxLoss(nn.Module):
         # Sum of losses: L(x,c,l,g) = (Lconf(x, c) + αLloc(x,l,g)) / N
 
         N = num_pos.data.sum().double()
-        loss_l = loss_l.double()
+        if self.loss == 'SmoothL1':
+            loss_l = loss_l.double()
+        else:
+            loss_l = 16.0 * loss_l.double()
         loss_c = loss_c.double()
         loss_l /= N
         loss_c /= N

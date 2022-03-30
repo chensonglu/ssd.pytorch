@@ -81,6 +81,7 @@ car = {
 }
 
 carplate = {
+    'losstype': 'Ciou',
     'num_classes': 2,
     'lr_steps': (20000, 40000, 60000),
     'max_iter': 60000,
