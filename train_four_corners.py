@@ -135,7 +135,7 @@ def train():
     # optimizer = optim.Adam(net.parameters(), lr=args.lr, betas=(0.9, 0.999),
     #                        weight_decay=args.weight_decay)
     criterion = MultiBoxLoss_four_corners(cfg['num_classes'], 0.5, True, 0, True, 3, 0.5,
-                             False, args.cuda)
+                             False, args.cuda, BB_loss_name=cfg['BB_losstype'], FV_loss_name=cfg['FV_losstype'])
 
     net.train()
     # loss counters

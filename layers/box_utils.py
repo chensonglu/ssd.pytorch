@@ -202,6 +202,42 @@ def match_offset(threshold, truths, priors, variances, labels, loc_t, conf_t, ha
     offset_t[idx] = offset
 
 
+def match_four_corners_ious(threshold, truths, priors, variances, labels, loc_t, conf_t, four_corners_t, idx):
+    # jaccard index
+    overlaps = jaccard(
+        truths,
+        point_form(priors)
+    )  # (num_gt,num_priors)
+
+    # (Bipartite Matching)
+    # [num_objects,1] best prior for each ground truth
+    # 内容是0 - 8731
+    best_prior_overlap, best_prior_idx = overlaps.max(1, keepdim=True)
+
+    # [1,num_priors] best ground truth for each prior
+    # 内容是0 - (num_objects - 1)
+    best_truth_overlap, best_truth_idx = overlaps.max(0, keepdim=True)
+
+    best_truth_idx.squeeze_(0)
+    best_truth_overlap.squeeze_(0)
+    best_prior_idx.squeeze_(1)
+    best_prior_overlap.squeeze_(1)
+    best_truth_overlap.index_fill_(0, best_prior_idx, 2)  # ensure best prior
+    # TODO refactor: index  best_prior_idx with long tensor
+    # ensure every gt matches with its prior of max overlap
+    for j in range(best_prior_idx.size(0)):
+        best_truth_idx[best_prior_idx[j]] = j  # best_truth_idx contains best_prior_idx
+    matches = truths[best_truth_idx]          # Shape: [num_priors,4]
+    conf = labels[best_truth_idx] + 1         # Shape: [num_priors] 因为背景当做一类，所以需要+1
+    conf[best_truth_overlap < threshold] = 0  # label as background
+
+    loc_t[idx] = matches[:, :4]    # [num_priors,4] encoded offsets to learn
+    conf_t[idx] = conf  # [num_priors] top class label for each prior
+
+    four_corners = encode_four_corners(matches[:, 4:12], priors, variances)
+    four_corners_t[idx] = four_corners
+
+
 def match_four_corners(threshold, truths, priors, variances, labels, loc_t, conf_t, four_corners_t, idx):
     # jaccard index
     overlaps = jaccard(

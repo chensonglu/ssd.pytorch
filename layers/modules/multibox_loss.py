@@ -4,7 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
 from data import voc as cfg
-from ..box_utils import match, match_offset, match_four_corners, match_only_four_corners, log_sum_exp
+from ..box_utils import match, match_four_corners_ious, match_offset, match_four_corners, match_only_four_corners, log_sum_exp
 from ..box_utils import decode, decode_four_corners, decode_four_corners_TextBoxesPlusPlus
 from ..box_utils import match_ious, bbox_overlaps_iou, bbox_overlaps_giou, bbox_overlaps_diou, bbox_overlaps_ciou
 from ..functions.detection import Detect_four_corners
@@ -316,7 +316,7 @@ class MultiBoxLoss_offset(nn.Module):
 class MultiBoxLoss_four_corners(nn.Module):
     def __init__(self, num_classes, overlap_thresh, prior_for_matching,
                  bkg_label, neg_mining, neg_pos, neg_overlap, encode_target,
-                 use_gpu=True):
+                 use_gpu=True, BB_loss_name='SmoothL1', FV_loss_name='SmoothL1'):
         super(MultiBoxLoss_four_corners, self).__init__()
         self.use_gpu = use_gpu
         self.num_classes = num_classes
@@ -328,6 +328,16 @@ class MultiBoxLoss_four_corners(nn.Module):
         self.negpos_ratio = neg_pos
         self.neg_overlap = neg_overlap
         self.variance = cfg['variance']
+        self.BB_loss = BB_loss_name
+        self.FV_loss = FV_loss_name
+        self.BB_pred_mode = 'Center'
+        self.FV_pred_mode = 'Bbox'
+        self.BB_iou_loss = IouLoss(pred_mode=self.BB_pred_mode, size_sum=True, variances=self.variance, losstype=self.BB_loss)
+        self.FV_iou_loss = IouLoss(pred_mode=self.FV_pred_mode, size_sum=True, variances=self.variance, losstype=self.FV_loss)
+        if self.BB_loss != 'SmoothL1' or self.BB_loss != 'Ciou':
+            assert Exception("BB loss name must be SmoothL1 or Ciou")
+        if self.FV_loss != 'SmoothL1' or self.FV_loss != 'Ciou':
+            assert Exception("FV loss name must be SmoothL1 or Ciou")
 
     def forward(self, predictions, targets):
         """Multibox Loss
@@ -357,8 +367,12 @@ class MultiBoxLoss_four_corners(nn.Module):
             truths = targets[idx][:, :-1].data
             labels = targets[idx][:, -1].data
             defaults = priors.data
-            match_four_corners(self.threshold, truths, defaults, self.variance, labels,
-                  loc_t, conf_t, four_corners_t, idx)
+            if self.BB_loss == 'SmoothL1':
+                match_four_corners(self.threshold, truths, defaults, self.variance, labels,
+                    loc_t, conf_t, four_corners_t, idx)
+            else:
+                match_four_corners_ious(self.threshold, truths, defaults, self.variance, labels,
+                    loc_t, conf_t, four_corners_t, idx)
         if self.use_gpu:
             loc_t = loc_t.cuda()
             conf_t = conf_t.cuda()
@@ -377,8 +391,11 @@ class MultiBoxLoss_four_corners(nn.Module):
 
         loc_p = loc_data[pos_idx].view(-1, 4)
         loc_t = loc_t[pos_idx].view(-1, 4)
-
-        loss_l = F.smooth_l1_loss(loc_p, loc_t, size_average=False)
+        if self.BB_loss == 'SmoothL1':
+            loss_l = F.smooth_l1_loss(loc_p, loc_t, size_average=False)
+        else:
+            ciou_priors = priors.data.unsqueeze(0).expand_as(loc_data)
+            loss_l = self.BB_iou_loss(loc_p, loc_t, ciou_priors[pos_idx].view(-1, 4))
 
         # Corner Loss (Smooth L1), only for positive prior
         # Shape: [batch,num_priors,8]
@@ -388,6 +405,21 @@ class MultiBoxLoss_four_corners(nn.Module):
         four_corners_t = four_corners_t[pos_idx].view(-1, 8)
 
         loss_four_corners = F.smooth_l1_loss(four_corners_p, four_corners_t, size_average=False)
+
+        if self.FV_loss != 'SmoothL1':
+            pos_idx = pos.unsqueeze(pos.dim()).expand_as(loc_data)
+            # CIoU Loss only for positive prior
+            # 需要首先decode, 将priors扩展成[batch,num_priors,4], 然后根据pos得到[batch,num_pos,4]
+            priors_pos = priors.unsqueeze(0).expand_as(four_corners_data[:,:,:4])[pos_idx].view(-1, 4)
+            decoded_four_points = decode_four_corners(four_corners_p, priors_pos, self.variance)  # [x_top_left, y_top_left, ...]
+
+            left = torch.min(decoded_four_points[:, 0], decoded_four_points[:, 6]).view(-1, 1)
+            top = torch.min(decoded_four_points[:, 1], decoded_four_points[:, 3]).view(-1, 1)
+            right = torch.max(decoded_four_points[:, 2], decoded_four_points[:, 4]).view(-1, 1)
+            bottom = torch.max(decoded_four_points[:, 5], decoded_four_points[:, 7]).view(-1, 1)
+            decoded_boxes_from_four_points = torch.cat((left, top, right, bottom), 1)
+
+            loss_border = self.FV_iou_loss(decoded_boxes_from_four_points, loc_t, priors_pos)
 
         # Compute max conf across batch for hard negative mining
         batch_conf = conf_data.view(-1, self.num_classes)
@@ -415,13 +447,21 @@ class MultiBoxLoss_four_corners(nn.Module):
 
         # Sum of losses
         N = num_pos.data.sum().double()
-        loss_l = loss_l.double()
+        if self.BB_loss == 'SmoothL1':
+            loss_l = loss_l.double()
+        else:
+            loss_l = 16.0 * loss_l.double()
         loss_c = loss_c.double()
         loss_four_corners = loss_four_corners.double()
         loss_l /= N
         loss_c /= N
         loss_four_corners /= N
-        return loss_l, loss_c, loss_four_corners
+        if self.FV_loss != 'SmoothL1':
+            loss_border = 16.0 * loss_border.double()
+            loss_border /= N
+            return loss_l, loss_c, loss_four_corners + loss_border
+        else:
+            return loss_l, loss_c, loss_four_corners
 
 
 class MultiBoxLoss_four_corners_with_border(nn.Module):
