@@ -126,7 +126,7 @@ class SSD(nn.Module):
         loc = torch.cat([o.view(o.size(0), -1) for o in loc], 1)
         conf = torch.cat([o.view(o.size(0), -1) for o in conf], 1)
         detect_time = _t['im_detect'].toc(average=False)
-        print("ssd forward detect_time: " + str(detect_time))
+        # print("ssd forward detect_time: " + str(detect_time))
 
         _t['im_detect'].tic()
         if self.phase == "test":
@@ -143,7 +143,7 @@ class SSD(nn.Module):
                 self.priors
             )
         detect_time = _t['im_detect'].toc(average=False)
-        print("post processing detect_time: " + str(detect_time))
+        # print("post processing detect_time: " + str(detect_time))
         return output
 
     def load_weights(self, base_file):
