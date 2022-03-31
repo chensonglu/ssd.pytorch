@@ -13,18 +13,18 @@ class Detect(Function):
     scores and threshold to a top_k number of output predictions for both
     confidence score and locations.
     """
-    def __init__(self, num_classes, bkg_label, top_k, conf_thresh, nms_thresh):
-        self.num_classes = num_classes
-        self.background_label = bkg_label
-        self.top_k = top_k
-        # Parameters used in nms.
-        self.nms_thresh = nms_thresh
-        if nms_thresh <= 0:
-            raise ValueError('nms_threshold must be non negative.')
-        self.conf_thresh = conf_thresh
-        self.variance = cfg['variance']
-
-    def forward(self, loc_data, conf_data, prior_data):
+    # def __init__(self, num_classes, bkg_label, top_k, conf_thresh, nms_thresh):
+    #     self.num_classes = num_classes
+    #     self.background_label = bkg_label
+    #     self.top_k = top_k
+    #     # Parameters used in nms.
+    #     self.nms_thresh = nms_thresh
+    #     if nms_thresh <= 0:
+    #         raise ValueError('nms_threshold must be non negative.')
+    #     self.conf_thresh = conf_thresh
+    #     self.variance = cfg['variance']
+    @staticmethod
+    def forward(self, num_classes, bkg_label, top_k, conf_thresh, nms_thresh, loc_data, conf_data, prior_data):
         """
         Args:
             loc_data: (tensor) Loc preds from loc layers
@@ -34,6 +34,15 @@ class Detect(Function):
             prior_data: (tensor) Prior boxes and variances from priorbox layers
                 Shape: [num_priors,4]
         """
+        self.num_classes = num_classes
+        self.background_label = bkg_label
+        self.top_k = top_k
+        # Parameters used in nms.
+        self.nms_thresh = nms_thresh
+        if nms_thresh <= 0:
+            raise ValueError('nms_threshold must be non negative.')
+        self.conf_thresh = conf_thresh
+        self.variance = cfg['variance']
         num = loc_data.size(0)  # batch size
         num_priors = prior_data.size(0)
         output = torch.zeros(num, self.num_classes, self.top_k, 5)
