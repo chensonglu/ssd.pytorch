@@ -1,6 +1,6 @@
 from data import *
 from utils.augmentations import SSDAugmentation_two_stage_end2end
-from layers.modules import MultiBoxLoss_offset, MultiBoxLoss_four_corners_with_border
+from layers.modules import MultiBoxLoss_offset, MultiBoxLoss_four_corners_with_CIoU
 from ssd_two_stage_end2end import build_ssd
 import os
 import sys
@@ -147,7 +147,7 @@ def train():
                            weight_decay=args.weight_decay)
     criterion = MultiBoxLoss_offset(cfg['num_classes'], 0.5, True, 0, True, 3, 0.5,
                              False, args.cuda)
-    criterion_2 = MultiBoxLoss_four_corners_with_border(cfg['num_classes'], 0.5, True, 0, True, 3, 0.5,
+    criterion_2 = MultiBoxLoss_four_corners_with_CIoU(cfg['num_classes'], 0.5, True, 0, True, 3, 0.5,
                                           False, args.cuda)
 
     net.train()

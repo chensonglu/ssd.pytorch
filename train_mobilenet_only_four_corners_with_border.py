@@ -1,6 +1,6 @@
 from data import *
 from utils.augmentations import SSDAugmentation_four_corners
-from layers.modules import MultiBoxLoss_only_four_corners_with_border, MultiBoxLoss_only_four_corners_with_CIoU
+from layers.modules import MultiBoxLoss_only_four_corners_with_CIoU
 from ssd_mobilenet_only_four_corners import build_ssd
 import os
 import sys
@@ -131,10 +131,10 @@ def train():
         ssd_net.conf.apply(weights_init)
         ssd_net.four_corners.apply(weights_init)
 
-    optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=args.momentum,
-                          weight_decay=args.weight_decay)
-    # optimizer = optim.Adam(net.parameters(), lr=args.lr, betas=(0.9, 0.999),
-    #                        weight_decay=args.weight_decay)
+    # optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=args.momentum,
+    #                       weight_decay=args.weight_decay)
+    optimizer = optim.Adam(net.parameters(), lr=args.lr, betas=(0.9, 0.999),
+                           weight_decay=args.weight_decay)
     criterion = MultiBoxLoss_only_four_corners_with_CIoU(cfg['num_classes'], 0.5, True, 0, True, 3, 0.5,
                              False, args.cuda)
 

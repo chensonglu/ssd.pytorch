@@ -1,6 +1,6 @@
 from data import *
 from utils.augmentations import SSDAugmentation_four_corners
-from layers.modules import MultiBoxLoss_only_four_corners_with_border, MultiBoxLoss_only_four_corners_with_CIoU
+from layers.modules import MultiBoxLoss_only_four_corners_with_CIoU
 from ssd_only_four_corners import build_ssd
 import os
 import sys
