@@ -68,8 +68,8 @@ if args.obj_type == "carplate":
 if args.obj_type == "carplate_four_corners":
     from ssd_four_corners import build_ssd
     print("carplate_four_corners")
-    bbox_cal_types = ['bbox', 'bbox_from_fc']
-    four_corners_cal_types = ['fc', 'fc_from_bbox']
+    bbox_cal_types = ['bbox']
+    four_corners_cal_types = ['fc']
 elif args.obj_type == "carplate_only_four_corners":
     from ssd_only_four_corners import build_ssd
     print("carplate_only_four_corners")
