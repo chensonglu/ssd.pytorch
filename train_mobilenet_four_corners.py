@@ -1,7 +1,7 @@
 from data import *
 from utils.augmentations import SSDAugmentation_four_corners
 from layers.modules import MultiBoxLoss_four_corners
-from ssd_mobilenet_four_corners import build_ssd
+from ssd_mobilenet import build_ssd
 import os
 import sys
 import time
@@ -101,7 +101,7 @@ def train():
         global viz
         viz = visdom.Visdom()
 
-    ssd_net = build_ssd('train', cfg['min_dim'], cfg['num_classes'])
+    ssd_net = build_ssd('train', cfg['min_dim'], cfg['num_classes'], head_type=cfg['head_type'])
     net = ssd_net
 
     # summary
@@ -137,7 +137,7 @@ def train():
     optimizer = optim.Adam(net.parameters(), lr=args.lr, betas=(0.9, 0.999),
                            weight_decay=args.weight_decay)
     criterion = MultiBoxLoss_four_corners(cfg['num_classes'], 0.5, True, 0, True, 3, 0.5,
-                             False, args.cuda)
+                             False, args.cuda, BB_loss_name=cfg['BB_losstype'], FV_loss_name=cfg['FV_losstype'])
 
     net.train()
     # loss counters

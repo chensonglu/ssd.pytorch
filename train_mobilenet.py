@@ -161,7 +161,7 @@ def train():
         global viz
         viz = visdom.Visdom()
 
-    ssd_net = build_ssd('train', cfg['min_dim'], cfg['num_classes'])
+    ssd_net = build_ssd('train', cfg['min_dim'], cfg['num_classes'], head_type=cfg['head_type'])
     net = ssd_net
 
     # summary
@@ -196,7 +196,7 @@ def train():
     optimizer = optim.Adam(net.parameters(), lr=args.lr, betas=(0.9, 0.999),
                            weight_decay=args.weight_decay)
     criterion = MultiBoxLoss(cfg['num_classes'], 0.5, True, 0, True, 3, 0.5,
-                             False, args.cuda)
+                             False, args.cuda, loss_name=cfg['BB_losstype'])
 
     net.train()
     # loss counters
