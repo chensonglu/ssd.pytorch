@@ -317,7 +317,7 @@ def test_net(save_folder, obj_type, voc_root, set_type_, labelmap_, net, cuda, d
             elif obj_type in ['carplate_four_corners','carplate_four_corners_with_border',
                             'carplate_only_four_corners', 'carplate_only_four_corners_with_border',
                             'two_stage_end2end', 'two_stage_end2end_with_border',
-                            'TITS_Neuro']:
+                            'TITS_Neuro', 'carplate_only_four_corners_with_border_recognition']:
                 mask = dets[:, 0].gt(0.).expand(13, dets.size(0)).t()
                 dets = torch.masked_select(dets, mask).view(-1, 13)
             else:
