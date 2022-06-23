@@ -272,20 +272,21 @@ class SSD_only_four_corners_recognition(nn.Module):
         # print('logits', logits.shape)
 
         if self.phase == "test":
-            output = self.detect.apply(self.num_classes, 0, 200, 0.01, 0.45,
+            detection_output = self.detect.apply(self.num_classes, 0, 200, 0.01, 0.45,
                 self.softmax(conf.view(conf.size(0), -1,
                              self.num_classes)),                # conf preds
                 self.priors.type(type(x.data)),                 # default boxes
                 four_corners.view(four_corners.size(0), -1, 8)
             )
+            recognition_output = logits
         else:
-            output = (
+            detection_output = (
                 conf.view(conf.size(0), -1, self.num_classes),
                 self.priors,
-                four_corners.view(four_corners.size(0), -1, 8),
-                logits
+                four_corners.view(four_corners.size(0), -1, 8)
             )
-        return output
+            recognition_output = logits
+        return detection_output, recognition_output
 
     def load_weights(self, base_file):
         other, ext = os.path.splitext(base_file)

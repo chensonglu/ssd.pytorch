@@ -23,11 +23,22 @@ def str2bool(v):
     return v.lower() in ("yes", "true", "t", "1")
 
 
+def sparse_tuple_for_ctc(T_length, lengths):
+    input_lengths = []
+    target_lengths = []
+
+    for ch in lengths:
+        input_lengths.append(T_length)
+        target_lengths.append(ch)
+
+    return tuple(input_lengths), tuple(target_lengths)
+
+
 parser = argparse.ArgumentParser(
     description='Single Shot MultiBox Detector Training With Pytorch')
 train_set = parser.add_mutually_exclusive_group()
-parser.add_argument('--dataset', default='CARPLATE_ONLY_FOUR_CORNERS_WITH_BORDER', choices=['CARPLATE_ONLY_FOUR_CORNERS_WITH_BORDER'],
-                    type=str, help='CARPLATE_ONLY_FOUR_CORNERS_WITH_BORDER')
+parser.add_argument('--dataset', default='CARPLATE_ONLY_FOUR_CORNERS_WITH_BORDER_RECOGNITION', choices=['CARPLATE_ONLY_FOUR_CORNERS_WITH_BORDER_RECOGNITION'],
+                    type=str, help='CARPLATE_ONLY_FOUR_CORNERS_WITH_BORDER_RECOGNITION')
 parser.add_argument('--dataset_root', default=VOC_ROOT,
                     help='Dataset root directory path')
 parser.add_argument('--basenet', default='vgg16_reducedfc.pth',
@@ -62,8 +73,8 @@ parser.add_argument('--confidence_threshold', default=0.01, type=float,
                     help='Minimum threshold of preserved results')
 parser.add_argument('--eval_save_folder', default='eval/',
                     help='File path to save results')
-parser.add_argument('--obj_type', default='carplate_only_four_corners_with_border', choices=['carplate_only_four_corners_with_border'],
-                    type=str, help='carplate_only_four_corners_with_border')
+parser.add_argument('--obj_type', default='carplate_only_four_corners_with_border_recognition', choices=['carplate_only_four_corners_with_border_recognition'],
+                    type=str, help='carplate_only_four_corners_with_border_recognition')
 args = parser.parse_args()
 
 
@@ -82,18 +93,20 @@ if not os.path.exists('weights/' + args.save_folder):
 
 
 def train():
-    if args.dataset == 'CARPLATE_ONLY_FOUR_CORNERS_WITH_BORDER':
+    T_length = 18 # args.lpr_max_len
+
+    if args.dataset == 'CARPLATE_ONLY_FOUR_CORNERS_WITH_BORDER_RECOGNITION':
         cfg = carplate
         if args.input_size == 512:
             cfg = change_cfg_for_ssd512(cfg)
-        dataset = CARPLATE_FOUR_CORNERSDetection(root=args.dataset_root,
+        dataset = CARPLATE_FOUR_CORNERS_RECOGNITIONDetection(root=args.dataset_root,
                                     transform=SSDAugmentation_four_corners(cfg['min_dim'],
                                                          MEANS),
                                     dataset_name='trainval')
-        from data import CARPLATE_FOUR_CORNERS_CLASSES as labelmap
-        eval_dataset = CARPLATE_FOUR_CORNERSDetection(root=args.dataset_root,
+        from data import CARPLATE_FOUR_CORNERS_RECOGNITION_CLASSES as labelmap
+        eval_dataset = CARPLATE_FOUR_CORNERS_RECOGNITIONDetection(root=args.dataset_root,
                            transform=BaseTransform(args.input_size, MEANS),
-                           target_transform=CARPLATE_FOUR_CORNERSAnnotationTransform(keep_difficult=True),
+                           target_transform=CARPLATE_FOUR_CORNERS_RECOGNITIONAnnotationTransform(keep_difficult=True),
                            dataset_name='test')
 
     if args.visdom:
@@ -129,18 +142,26 @@ def train():
         ssd_net.conf.apply(weights_init)
         ssd_net.four_corners.apply(weights_init)
 
+    backbone_params = list(map(id, ssd_net.backbone.parameters()))
+    container_params = list(map(id, ssd_net.container.parameters()))
+    base_params = filter(lambda p: id(p) not in backbone_params+container_params, ssd_net.parameters())
+    params = [{'params': base_params},
+              {'params': ssd_net.backbone.parameters(), 'lr': args.lr*50.0},
+              {'params': ssd_net.container.parameters(), 'lr': args.lr*50.0}]
     # optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=args.momentum,
     #                       weight_decay=args.weight_decay)
-    optimizer = optim.Adam(net.parameters(), lr=args.lr, betas=(0.9, 0.999),
+    optimizer = optim.Adam(params, lr=args.lr, betas=(0.9, 0.999),
                            weight_decay=args.weight_decay)
     criterion = MultiBoxLoss_only_four_corners_with_CIoU(cfg['num_classes'], 0.5, True, 0, True, 3, 0.5,
                              False, args.cuda)
+    rec_criterion = nn.CTCLoss(blank=len(CHARS)-1, reduction='mean')
 
     net.train()
     # loss counters
     conf_loss = 0
     four_corners_loss = 0
     border_loss = 0
+    rec_loss = 0
     epoch = 0
     print('Loading the dataset...')
 
@@ -153,13 +174,13 @@ def train():
 
     if args.visdom:
         vis_title = 'SSD.PyTorch on ' + dataset.name
-        vis_legend = ['Conf Loss', 'Four Corners Loss', 'Border Loss', 'Total Loss']
+        vis_legend = ['Conf Loss', 'Four Corners Loss', 'Border Loss', 'Rec Loss', 'Total Loss']
         iter_plot = create_vis_plot('Iteration', 'Loss', vis_title, vis_legend)
         epoch_plot = create_vis_plot('Epoch', 'Loss', vis_title, vis_legend)
 
     data_loader = data.DataLoader(dataset, args.batch_size,
                                   num_workers=args.num_workers,
-                                  shuffle=True, collate_fn=detection_collate,
+                                  shuffle=True, collate_fn=detection_recognition_collate,
                                   pin_memory=True)
 
     lr = args.lr
@@ -168,12 +189,13 @@ def train():
     for iteration in range(args.start_iter, cfg['max_iter']):
         if args.visdom and iteration != 0 and (iteration % epoch_size == 0):
             epoch += 1
-            update_vis_plot(epoch, conf_loss, four_corners_loss, border_loss, epoch_plot, None,
+            update_vis_plot(epoch, conf_loss, four_corners_loss, border_loss, rec_loss, epoch_plot, None,
                             'append', epoch_size)
             # reset epoch loss counters
             conf_loss = 0
             four_corners_loss = 0
             border_loss = 0
+            rec_loss = 0
 
         if iteration in cfg['lr_steps']:
             step_index += 1
@@ -181,41 +203,53 @@ def train():
 
         # load train data
         try:
-            images, targets = next(batch_iterator)
+            images, targets, labels, lengths = next(batch_iterator)
         except StopIteration:
             batch_iterator = iter(data_loader)
-            images, targets = next(batch_iterator)
+            images, targets, labels, lengths = next(batch_iterator)
+
+        # get ctc parameters
+        input_lengths, target_lengths = sparse_tuple_for_ctc(T_length, lengths)
 
         if args.cuda:
             images = Variable(images.cuda())
             with torch.no_grad():
                 targets = [Variable(ann.cuda()) for ann in targets]
+            images = Variable(images, requires_grad=False).cuda()
+            labels = Variable(labels, requires_grad=False).cuda()
         else:
             images = Variable(images)
             with torch.no_grad():
                 targets = [Variable(ann) for ann in targets]
+            images = Variable(images, requires_grad=False)
+            labels = Variable(labels, requires_grad=False)
+
         # forward
         t0 = time.time()
-        out = net(images, targets)
+        det_out, rec_out = net(images, targets)
+        log_probs = rec_out.permute(2, 0, 1) # for ctc loss: T x N x C
+        log_probs = log_probs.log_softmax(2).requires_grad_()
         # backprop
         optimizer.zero_grad()
-        loss_c, loss_four_corners, loss_border = criterion(out, targets)
-        loss = loss_c + loss_four_corners + loss_border
+        loss_c, loss_four_corners, loss_border = criterion(det_out, targets)
+        loss_rec = rec_criterion(log_probs, labels, input_lengths=input_lengths, target_lengths=target_lengths)
+        loss = loss_c + loss_four_corners + loss_border + loss_rec
         loss.backward()
         optimizer.step()
         t1 = time.time()
         conf_loss += loss_c.item()
         four_corners_loss += loss_four_corners.item()
         border_loss += loss_border.item()
+        rec_loss += loss_rec.item()
 
         if iteration % 100 == 0:
             log.l.info('''
-                Timer: {:.5f} sec.\t LR: {}.\t Iter: {}.\t Loss_c: {:.5f}.\t Loss_four_corners: {:.5f}.\t Loss_border: {:.5f}.\t Loss: {:.5f}.
-                '''.format((t1-t0), lr, iteration, loss_c.item(), loss_four_corners.item(), loss_border.item(),
-                loss_c.item() + loss_four_corners.item() + loss_border.item(),))
+                Timer: {:.5f} sec.\t LR: {}.\t Iter: {}.\t Loss_c: {:.5f}.\t Loss_four_corners: {:.5f}.\t Loss_border: {:.5f}.\t Loss_rec: {:.5f}.\t Loss: {:.5f}.
+                '''.format((t1-t0), lr, iteration, loss_c.item(), loss_four_corners.item(), loss_border.item(), loss_rec.item(),
+                loss_c.item() + loss_four_corners.item() + loss_border.item() + loss_rec.item(),))
 
         if args.visdom:
-            update_vis_plot(iteration, loss_c.item(), loss_four_corners.item(), loss_border.item(),
+            update_vis_plot(iteration, loss_c.item(), loss_four_corners.item(), loss_border.item(), loss_rec.item(),
                             iter_plot, epoch_plot, 'append')
 
         if iteration != 0 and iteration % 5000 == 0:
@@ -232,10 +266,10 @@ def train():
             if args.cuda:
                 eval_net = eval_net.cuda()
                 cudnn.benchmark = True
-            # evaluation begin
-            eval_results.test_net(args.eval_save_folder, args.obj_type, args.dataset_root, 'test',
-                    labelmap, eval_net, args.cuda, eval_dataset, BaseTransform(eval_net.size, MEANS), args.top_k,
-                    args.input_size, thresh=args.confidence_threshold)
+            # # evaluation begin
+            # eval_results.test_net(args.eval_save_folder, args.obj_type, args.dataset_root, 'test',
+            #         labelmap, eval_net, args.cuda, eval_dataset, BaseTransform(eval_net.size, MEANS), args.top_k,
+            #         args.input_size, thresh=args.confidence_threshold)
 
     torch.save(ssd_net.state_dict(),
                'weights/' + args.save_folder + '' + args.dataset + str(args.input_size) + '.pth')
@@ -248,10 +282,10 @@ def train():
     if args.cuda:
         eval_net = eval_net.cuda()
         cudnn.benchmark = True
-    # evaluation begin
-    eval_results.test_net(args.eval_save_folder, args.obj_type, args.dataset_root, 'test',
-            labelmap, eval_net, args.cuda, eval_dataset, BaseTransform(eval_net.size, MEANS), args.top_k,
-            args.input_size, thresh=args.confidence_threshold)
+    # # evaluation begin
+    # eval_results.test_net(args.eval_save_folder, args.obj_type, args.dataset_root, 'test',
+    #         labelmap, eval_net, args.cuda, eval_dataset, BaseTransform(eval_net.size, MEANS), args.top_k,
+    #         args.input_size, thresh=args.confidence_threshold)
 
 
 def adjust_learning_rate(optimizer, gamma, epoch, step_index, iteration, epoch_size):
@@ -282,7 +316,7 @@ def weights_init(m):
 def create_vis_plot(_xlabel, _ylabel, _title, _legend):
     return viz.line(
         X=torch.zeros((1,)).cpu(),
-        Y=torch.zeros((1, 4)).cpu(),
+        Y=torch.zeros((1, 5)).cpu(),
         opts=dict(
             xlabel=_xlabel,
             ylabel=_ylabel,
@@ -292,19 +326,19 @@ def create_vis_plot(_xlabel, _ylabel, _title, _legend):
     )
 
 
-def update_vis_plot(iteration, conf, four_corners, border, window1, window2, update_type,
+def update_vis_plot(iteration, conf, four_corners, border, rec, window1, window2, update_type,
                     epoch_size=1):
     viz.line(
-        X=torch.ones((1, 4)).cpu() * iteration,
-        Y=torch.Tensor([conf, four_corners, border, conf + four_corners + border]).unsqueeze(0).cpu() / epoch_size,
+        X=torch.ones((1, 5)).cpu() * iteration,
+        Y=torch.Tensor([conf, four_corners, border, rec, conf + four_corners + border + rec]).unsqueeze(0).cpu() / epoch_size,
         win=window1,
         update=update_type
     )
     # initialize epoch plot on first iteration
     if iteration == 0:
         viz.line(
-            X=torch.zeros((1, 4)).cpu(),
-            Y=torch.Tensor([conf, four_corners, border, conf + four_corners + border]).unsqueeze(0).cpu(),
+            X=torch.zeros((1, 5)).cpu(),
+            Y=torch.Tensor([conf, four_corners, border, rec, conf + four_corners + border + rec]).unsqueeze(0).cpu(),
             win=window2,
             update=True
         )
