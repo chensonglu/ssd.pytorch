@@ -294,13 +294,19 @@ def test_net(save_folder, obj_type, voc_root, set_type_, labelmap_, net, cuda, d
 
     total_time = 0
     for i in range(num_images):
-        im, gt, h, w = dataset.pull_item(i)
+        if obj_type in ['carplate_only_four_corners_with_border_recognition']:
+            im, gt, h, w, labels, lenghts = dataset.pull_item(i)
+        else:
+            im, gt, h, w = dataset.pull_item(i)
         x = Variable(im.unsqueeze(0))
         if args_cuda:
             x = x.cuda()
         _t['im_detect'].tic()
         if obj_type in ['two_stage_end2end', 'two_stage_end2end_with_border', 'TITS_Neuro']:
             detections = net(x, []).data
+        elif obj_type in ['carplate_only_four_corners_with_border_recognition']:
+            det_out, rec_out = net(x, [])
+            detections = det_out.data
         else:
             detections = net(x).data
         detect_time = _t['im_detect'].toc(average=False)

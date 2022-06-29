@@ -100,8 +100,8 @@ class PerspectiveTrans(nn.Module):
             # 防止出现0
             b[3] = b[3] if b[3] - b[1] > 0 else b[3] + 1
             b[2] = b[2] if b[2] - b[0] > 0 else b[2] + 1
-            H = b[3] - b[1]
-            W = b[2] - b[0]
+            H = (b[3] - b[1]).cpu()
+            W = (b[2] - b[0]).cpu()
             wrap_maps = fea_maps[:, b[1]:b[3], b[0]:b[2]]
             # print('wrap_maps', wrap_maps.shape)
             # cv2.imshow('wrap', wrap_maps[:3, :, :].data.cpu().numpy().transpose(1, 2, 0))
