@@ -209,6 +209,7 @@ class SSD_only_four_corners_recognition(nn.Module):
             rpn_rois = rpn_rois.detach()
             # [num, num_classes, top_k, 13]
             lp_corners = (rpn_rois[0][1][0][5:]*512.0).unsqueeze(0)
+            lp_corners = torch.clamp(lp_corners, min=0.0, max=512.0)
             # print(lp_corners)
             # print(type(lp_corners))
             # print(lp_corners.shape)
