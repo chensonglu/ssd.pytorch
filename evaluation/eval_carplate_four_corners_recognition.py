@@ -410,7 +410,7 @@ def test_net(save_folder, net, cuda, dataset, im_size=300, object_size='all'):
             x = x.cuda()
         _t['im_detect'].tic()
         if args.obj_type in ['carplate_only_four_corners_recognition']:
-            det_out, rec_out = net(x, [])
+            det_out, rec_out = net(x, gt)
             detections = det_out.data
         detect_time = _t['im_detect'].toc(average=False)
 
