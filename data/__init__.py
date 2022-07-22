@@ -56,7 +56,7 @@ def detection_recognition_collate(batch):
         labels.extend(sample[2])
         lengths.append(sample[3])
     labels = np.asarray(labels).flatten().astype(np.int)
-    return torch.stack(imgs, 0), targets, torch.from_numpy(labels), lengths
+    return torch.stack(imgs, 0), torch.stack(targets, 0), torch.from_numpy(labels), lengths
 
 
 def base_transform(image, size, mean):
