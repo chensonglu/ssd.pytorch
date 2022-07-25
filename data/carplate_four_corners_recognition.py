@@ -14,7 +14,7 @@ CARPLATE_FOUR_CORNERS_RECOGNITION_CLASSES = (  # always index 0
     'carplate', )
 
 # note: if you used our download scripts, this should be right
-CARPLATE_FOUR_CORNERS_RECOGNITION_ROOT = osp.join('/data', 'CCPD/test/ccpd_rotate/')
+CARPLATE_FOUR_CORNERS_RECOGNITION_ROOT = osp.join('/home/yzbj/data', 'CLPD/VOC/')
 
 
 class CARPLATE_FOUR_CORNERS_RECOGNITIONAnnotationTransform(object):
@@ -85,9 +85,11 @@ class CARPLATE_FOUR_CORNERS_RECOGNITIONAnnotationTransform(object):
             # label -1
             label_idx = self.class_to_ind[name]
             bndbox.append(label_idx)
-            res += [bndbox]  # [xmin, ymin, xmax, ymax, x_top_left, y_top_left, ..., label_ind]
+            # LP number
+            bndbox.append(obj.find('number').text)
+            res += [bndbox]  # [xmin, ymin, xmax, ymax, x_top_left, y_top_left, ..., label_ind, number]
             # img_id = target.find('filename').text[:-4]
-        return res  # [[xmin, ymin, xmax, ymax, x_top_left, y_top_left, ..., label_ind], ... ]
+        return res  # [[xmin, ymin, xmax, ymax, x_top_left, y_top_left, ..., label_ind, number], ... ]
 
 
 class CARPLATE_FOUR_CORNERS_RECOGNITIONDetection(data.Dataset):
@@ -132,24 +134,17 @@ class CARPLATE_FOUR_CORNERS_RECOGNITIONDetection(data.Dataset):
     def pull_item(self, index):
         img_id = self.ids[index]
 
-        # 这种方式是按照CCPD名字得到label
-        imgname = ''
-        basename = img_id[1]
-        numbers = basename.strip().split('-')[-3]
-        province = provinces[int(numbers.split('_')[0])]
-        imgname = imgname + province
-        alphabet = alphabets[int(numbers.split('_')[1])]
-        imgname = imgname + alphabet
-        for i in range(5):
-            ad = ads[int(numbers.split('_')[i+2])]
-            imgname = imgname + ad
-
-        label = list()
-        for c in imgname:
-            try:
-                label.append(CHARS_DICT[c])
-            except Exception as e:
-                pass # CLPD中有"警",暴力跳过
+        # # 这种方式是按照CCPD名字得到label
+        # imgname = ''
+        # basename = img_id[1]
+        # numbers = basename.strip().split('-')[-3]
+        # province = provinces[int(numbers.split('_')[0])]
+        # imgname = imgname + province
+        # alphabet = alphabets[int(numbers.split('_')[1])]
+        # imgname = imgname + alphabet
+        # for i in range(5):
+        #     ad = ads[int(numbers.split('_')[i+2])]
+        #     imgname = imgname + ad
 
         target = ET.parse(self._annopath % img_id).getroot()
         img = cv2.imread(self._imgpath % img_id)
@@ -157,6 +152,15 @@ class CARPLATE_FOUR_CORNERS_RECOGNITIONDetection(data.Dataset):
 
         if self.target_transform is not None:
             target = self.target_transform(target, width, height)
+
+        imgname = target[0][-1]
+        label = list()
+        for c in imgname:
+            try:
+                label.append(CHARS_DICT[c])
+            except Exception as e:
+                pass # CLPD中有"警",暴力跳过
+        target = [target[0][:-1]]
 
         if self.transform is not None:
             target = np.array(target)
