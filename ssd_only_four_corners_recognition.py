@@ -163,15 +163,15 @@ class SSD_only_four_corners_recognition(nn.Module):
         conf = list()
         four_corners = list()
 
-        # apply vgg up to conv1_1
-        for k in range(1):
-            x = self.vgg[k](x)
-            # conv1_1 feature
-            conv1_1_feat = x
-
         # apply vgg up to conv4_3 relu
-        for k in range(1, 23):
+        for k in range(23):
             x = self.vgg[k](x)
+            if k == 0:
+                conv1_1_feat = x
+            elif k == 7:
+                conv2_2_feat = x
+            elif k == 14:
+                conv3_3_feat = x
 
         s = self.L2Norm(x)
         sources.append(s)
