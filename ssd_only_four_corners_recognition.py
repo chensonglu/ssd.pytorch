@@ -210,10 +210,12 @@ class SSD_only_four_corners_recognition(nn.Module):
             # [num, num_classes, top_k, 13]
             lp_corners = (rpn_rois[0][1][0][5:]*512.0).unsqueeze(0)
             lp_corners = torch.clamp(lp_corners, min=0.0, max=512.0)
-            # print(lp_corners)
+            # print('lp_corners: ', lp_corners)
             # print(type(lp_corners))
             # print(lp_corners.shape)
             # print(lp_corners.device)
+            # print('targets: ', (torch.from_numpy(targets[:, 4:-1]).to(lp_corners.device)*512.0).float())
+            # lp_corners_gt = (torch.from_numpy(targets[:, 4:-1]).to(lp_corners.device)*512.0).float()
             x_rec_list = self.perspective_trans_function(fea_maps=conv1_1_feat[0, :, :, :],
                                                     corners_tensor=lp_corners,
                                                     target_size=self.reg_size)
