@@ -172,6 +172,8 @@ class SSD_only_four_corners_recognition(nn.Module):
                 conv2_2_feat = x
             elif k == 14:
                 conv3_3_feat = x
+            elif k == 21:
+                conv4_3_feat = x
 
         s = self.L2Norm(x)
         sources.append(s)
@@ -179,6 +181,8 @@ class SSD_only_four_corners_recognition(nn.Module):
         # apply vgg up to fc7
         for k in range(23, len(self.vgg)):
             x = self.vgg[k](x)
+            if k == 29:
+                conv5_3_feat = x
 
         sources.append(x)
 
