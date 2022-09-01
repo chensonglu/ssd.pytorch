@@ -125,7 +125,7 @@ def train():
     lpr_model_params = list(map(id, ssd_net.lpr_model.parameters()))
     base_params = filter(lambda p: id(p) not in lpr_model_params, ssd_net.parameters())
     params = [{'params': base_params},
-              {'params': ssd_net.lpr_model.parameters(), 'lr': args.lr*100.0}]
+              {'params': ssd_net.lpr_model.parameters(), 'lr': args.lr*10.0}]
     # optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=args.momentum,
     #                       weight_decay=args.weight_decay)
     optimizer = optim.Adam(params, lr=args.lr, betas=(0.9, 0.999),
