@@ -9,7 +9,7 @@ from PVAM.Trans_atten import *
 
 class LPR_model_trans_baseline(nn.Module):
 
-	def __init__(self, nc, nclass, imgW=96, imgH=32, K=8, n_position=192, head=2, inner=512, model_dim = 128, isSeqModel=True):
+	def __init__(self, nc, nclass, imgW=96, imgH=32, K=8, n_position=192, head=4, inner=512, model_dim=256, isSeqModel=True):
 		super(LPR_model_trans_baseline, self).__init__()
 		self.encoder = CNNEncoder_baseline(nc)
 		
