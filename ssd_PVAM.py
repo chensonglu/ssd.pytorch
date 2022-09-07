@@ -148,9 +148,9 @@ class SSD_PVAM(nn.Module):
                 sources.append(x)
 
         # apply multibox head to source layers
-        for (x, c, f) in zip(sources, self.conf, self.loc):
+        for (x, c, l) in zip(sources, self.conf, self.loc):
             conf.append(c(x).permute(0, 2, 3, 1).contiguous())
-            loc.append(f(x).permute(0, 2, 3, 1).contiguous())
+            loc.append(l(x).permute(0, 2, 3, 1).contiguous())
 
         conf = torch.cat([o.view(o.size(0), -1) for o in conf], 1)
         loc = torch.cat([o.view(o.size(0), -1) for o in loc], 1)
@@ -159,26 +159,39 @@ class SSD_PVAM(nn.Module):
 
         if self.phase == "test":
             rpn_rois = self.detect.apply(self.num_classes, 0, 200, 0.01, 0.45,
+                loc.view(loc.size(0), -1, 4),
                 self.softmax(conf.view(conf.size(0), -1,
                              self.num_classes)),                # conf preds
-                self.priors.type(type(x.data)),                 # default boxes
-                loc.view(loc.size(0), -1, 4)
+                self.priors.type(type(x.data))                 # default boxes
             )
             # 解除这部分的可导
             rpn_rois = rpn_rois.detach()
-            # [num, num_classes, top_k, 13]
-            lp_bbox = (rpn_rois[0][1][0][:4]*512.0).unsqueeze(0)
-            lp_bbox = torch.clamp(lp_bbox, min=0.0, max=512.0)
-            # print('lp_bbox: ', lp_bbox)
-            # print(type(lp_bbox))
-            # print(lp_bbox.shape)
-            # print(lp_bbox.device)
-            # print('targets: ', (torch.from_numpy(targets[:, 4:-1]).to(lp_bbox.device)*512.0).float())
-            # lp_bbox_gt = (torch.from_numpy(targets[:, 4:-1]).to(lp_bbox.device)*512.0).float()
-            x_rec_list = self.perspective_trans_function(fea_maps=conv1_1_feat[0, :, :, :],
-                                                    corners_tensor=lp_bbox,
-                                                    target_size=self.reg_size)
-            x_rec = x_rec_list[0]
+            # [num, num_classes, top_k, 5]
+            lp_bbox = (rpn_rois[0][1][0][1:5]).unsqueeze(0)
+            lp_bbox = torch.clamp(lp_bbox, min=0.0, max=1.0)
+            boxes_data_list = []
+            box_index_data_list = []
+            # from pred bbox
+            boxes_data = torch.zeros(lp_bbox.shape)
+            boxes_data[:, 0] = lp_bbox[:, 1]
+            boxes_data[:, 1] = lp_bbox[:, 0]
+            boxes_data[:, 2] = lp_bbox[:, 3]
+            boxes_data[:, 3] = lp_bbox[:, 2]
+            box_index_data_list.append(0)  # 当前图片的idx
+            boxes_data_list.append(boxes_data[0, :].cpu().numpy())  # 每个车牌的bbox
+            boxes_data = torch.FloatTensor(boxes_data_list)
+            box_index_data = torch.IntTensor(box_index_data_list)
+            image_data = conv1_1_feat
+            image_data = to_varabile(image_data, is_cuda=True, requires_grad=True)
+            boxes_data = to_varabile(boxes_data, is_cuda=True, requires_grad=False)
+            box_index_data = to_varabile(box_index_data, is_cuda=True, requires_grad=False)
+            # n*64*crop_height*crop_width
+            x_rec = CropAndResizeFunction.apply(image_data, boxes_data, box_index_data, self.reg_size[1], self.reg_size[0], 0)
+            # print('x_rec: ', x_rec.shape)
+            # import cv2
+            # for i in range(x_rec.shape[0]):
+            #     cv2.imshow(str(i), x_rec[i, 33:36, :, :].data.cpu().numpy().transpose(1, 2, 0))
+            # cv2.waitKey()
         else:
             # print("targets: ", targets)
             boxes_data_list = []
@@ -216,10 +229,10 @@ class SSD_PVAM(nn.Module):
 
         if self.phase == "test":
             detection_output = self.detect.apply(self.num_classes, 0, 200, 0.01, 0.45,
+                loc.view(loc.size(0), -1, 4),
                 self.softmax(conf.view(conf.size(0), -1,
                              self.num_classes)),                # conf preds
-                self.priors.type(type(x.data)),                 # default boxes
-                loc.view(loc.size(0), -1, 4)
+                self.priors.type(type(x.data))                 # default boxes
             )
             recognition_output = preds
         else:

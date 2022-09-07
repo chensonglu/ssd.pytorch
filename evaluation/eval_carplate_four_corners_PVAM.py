@@ -54,7 +54,7 @@ parser.add_argument('--input_size', default=300, type=int,
                     help='SSD300 OR SSD512')
 parser.add_argument('--iou_thres', default='0.5,0.75', type=str,
                     help='VOC2012 IoU threshold, separated by ",", such as 0.5,0.75')
-parser.add_argument('--obj_type', default='carplate_only_four_corners_recognition', choices=['carplate_only_four_corners_recognition'],
+parser.add_argument('--obj_type', default='carplate_only_four_corners_recognition', choices=['carplate_only_four_corners_recognition', 'carplate_recognition'],
                     type=str, help='Object type')
 parser.add_argument('--object_size', default='all', type=str,
                     help='Size to test: all, small, medium or large')
@@ -68,6 +68,11 @@ if args.obj_type == "carplate_only_four_corners_recognition":
     print("carplate_only_four_corners_recognition")
     bbox_cal_types = ['bbox_from_fc']
     four_corners_cal_types = ['fc']
+elif args.obj_type == "carplate_recognition":
+    from ssd_PVAM import build_ssd
+    print("carplate_recognition")
+    bbox_cal_types = ['bbox']
+    four_corners_cal_types = ['fc_from_bbox']
 
 if not os.path.exists(args.save_folder):
     os.mkdir(args.save_folder)
@@ -88,7 +93,7 @@ imgsetpath = os.path.join(args.voc_root, 'ImageSets',
                           'Main', '{:s}.txt')
 devkit_path = args.voc_root
 dataset_mean = (104, 117, 123)
-set_type = 'test'
+set_type = 'val'
 
 
 class Timer(object):
@@ -412,8 +417,7 @@ def test_net(save_folder, net, cuda, dataset, im_size=300, object_size='all'):
     for i in range(num_images):
         # if i < 5325:
         #     continue
-        if args.obj_type in ['carplate_only_four_corners_recognition']:
-            im, gt, h, w, labels, lengths = dataset.pull_item(i)
+        im, gt, h, w, labels, lengths = dataset.pull_item(i)
         targets = []
         targets.append(np.array(labels))
         if gt.shape[0] < 1:
@@ -422,9 +426,8 @@ def test_net(save_folder, net, cuda, dataset, im_size=300, object_size='all'):
         if args.cuda:
             x = x.cuda()
         _t['im_detect'].tic()
-        if args.obj_type in ['carplate_only_four_corners_recognition']:
-            det_out, rec_out = net(x, gt)
-            detections = det_out.data
+        det_out, rec_out = net(x, gt)
+        detections = det_out.data
         detect_time = _t['im_detect'].toc(average=False)
 
         _, preds_all = rec_out.max(2)
@@ -443,6 +446,9 @@ def test_net(save_folder, net, cuda, dataset, im_size=300, object_size='all'):
             if args.obj_type in ['carplate_only_four_corners_recognition']:
                 mask = dets[:, 0].gt(0.).expand(13, dets.size(0)).t()
                 dets = torch.masked_select(dets, mask).view(-1, 13)
+            elif args.obj_type in ['carplate_recognition']:
+                mask = dets[:, 0].gt(0.).expand(5, dets.size(0)).t()
+                dets = torch.masked_select(dets, mask).view(-1, 5)
             if dets.size(0) == 0:
                 continue
             boxes = dets[:, 1:]
@@ -459,6 +465,17 @@ def test_net(save_folder, net, cuda, dataset, im_size=300, object_size='all'):
                 boxes[:, 7] *= h
                 boxes[:, 9] *= h
                 boxes[:, 11] *= h
+            elif args.obj_type == 'carplate_recognition':
+                boxes_append = torch.zeros(boxes.shape[0], 8)
+                boxes_append[:, 0] = boxes[:, 0]
+                boxes_append[:, 2] = boxes[:, 2]
+                boxes_append[:, 4] = boxes[:, 2]
+                boxes_append[:, 6] = boxes[:, 0]
+                boxes_append[:, 1] = boxes[:, 1]
+                boxes_append[:, 3] = boxes[:, 1]
+                boxes_append[:, 5] = boxes[:, 3]
+                boxes_append[:, 7] = boxes[:, 3]
+                boxes = torch.cat((boxes, boxes_append), 1)
             scores = dets[:, 0].cpu().numpy()
             cls_dets = np.hstack((boxes.cpu().numpy(),
                                   scores[:, np.newaxis])).astype(np.float32,
