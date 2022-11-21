@@ -157,7 +157,7 @@ def train():
     data_loader = data.DataLoader(dataset, args.batch_size,
                                   num_workers=args.num_workers,
                                   shuffle=True, collate_fn=detection_recognition_collate,
-                                  pin_memory=True)
+                                  pin_memory=True, generator=torch.Generator(device='cuda'))
 
     lr = args.lr
     # create batch iterator
@@ -178,24 +178,23 @@ def train():
 
         # load train data
         try:
-            images, targets, labels, lengths = next(batch_iterator)
+            images, targets, labels = next(batch_iterator)
         except StopIteration:
             batch_iterator = iter(data_loader)
-            images, targets, labels, lengths = next(batch_iterator)
+            images, targets, labels = next(batch_iterator)
 
         if args.cuda:
-            images = Variable(images, requires_grad=False).cuda()
+            images = Variable(images.cuda(), requires_grad=False)
             with torch.no_grad():
-                targets = Variable(targets.cuda())
-            labels = Variable(labels, requires_grad=False).cuda()
+                targets = [Variable(ann.cuda()) for ann in targets]
+            labels = Variable(labels.cuda(), requires_grad=False)
         else:
             images = Variable(images, requires_grad=False)
             with torch.no_grad():
-                targets = Variable(targets)
+                targets = [Variable(ann) for ann in targets]
             labels = Variable(labels, requires_grad=False)
-        labels = labels.reshape(args.batch_size, 7) + 1
-        labels = torch.cat([labels, torch.zeros(args.batch_size).reshape(args.batch_size, 1)], dim=1).long()
-        # print("labels: ", labels.shape)
+        # labels = labels.reshape(args.batch_size, 7) + 1
+        # labels = torch.cat([labels, torch.zeros(args.batch_size).reshape(args.batch_size, 1)], dim=1).long()
         # forward
         t0 = time.time()
         det_out, rec_out = net(images, targets)
@@ -207,7 +206,7 @@ def train():
         for (i, item) in enumerate(rec_out):
             item = item.squeeze()
             gt = labels[:,i]
-            cost_item = rec_criterion(item, gt) 
+            cost_item = rec_criterion(item, gt)
             loss_rec += cost_item
         loss = loss_c + loss_loc + loss_rec
         loss.backward()

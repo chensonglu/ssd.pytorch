@@ -49,14 +49,12 @@ def detection_recognition_collate(batch):
     targets = []
     imgs = []
     labels = []
-    lengths = []
     for sample in batch:
         imgs.append(sample[0])
         targets.append(torch.FloatTensor(sample[1]))
         labels.extend(sample[2])
-        lengths.append(sample[3])
-    labels = np.asarray(labels).flatten().astype(np.int)
-    return torch.stack(imgs, 0), torch.stack(targets, 0), torch.from_numpy(labels), lengths
+    labels = np.asarray(labels)
+    return torch.stack(imgs, 0), targets, torch.LongTensor(labels)
 
 
 def base_transform(image, size, mean):

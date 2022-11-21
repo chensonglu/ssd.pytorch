@@ -125,8 +125,8 @@ class CARPLATE_FOUR_CORNERS_RECOGNITIONDetection(data.Dataset):
             self.ids.append((self.root, line.strip()))
 
     def __getitem__(self, index):
-        im, gt, h, w, label, length = self.pull_item(index)
-        return im, gt, label, length
+        im, gt, h, w, label = self.pull_item(index)
+        return im, gt, label
 
     def __len__(self):
         return len(self.ids)
@@ -153,15 +153,20 @@ class CARPLATE_FOUR_CORNERS_RECOGNITIONDetection(data.Dataset):
         if self.target_transform is not None:
             target = self.target_transform(target, width, height)
 
-        imgname = target[0][-1]
-        label = list()
-        for c in imgname:
-            try:
-                label.append(CHARS_DICT[c])
-            except Exception as e:
-                pass # CLPD中有"警",暴力跳过
-        target = [target[0][:-1]]
-
+        numbers = [t[-1] for t in target]
+        number_ids = []
+        for number in numbers:
+            number_id = []
+            for c in number:
+                try:
+                    number_id.append(CHARS_DICT[c]+1)
+                except Exception as e:
+                    pass # CLPD中有"警",暴力跳过
+            for i in range(K-len(number_id)):
+                number_id.append(0)
+            number_ids += [number_id]
+            
+        target = [t[:-1] for t in target]
         if self.transform is not None:
             target = np.array(target)
             if target.shape[0] > 0:
@@ -170,7 +175,7 @@ class CARPLATE_FOUR_CORNERS_RECOGNITIONDetection(data.Dataset):
                 img = img[:, :, (2, 1, 0)]
                 # img = img.transpose(2, 0, 1)
                 target = np.hstack((boxes, np.expand_dims(labels, axis=1)))
-        return torch.from_numpy(img).permute(2, 0, 1), target, height, width, label, len(label)
+        return torch.from_numpy(img).permute(2, 0, 1), target, height, width, number_ids
         # return torch.from_numpy(img), target, height, width
 
     def pull_image(self, index):
