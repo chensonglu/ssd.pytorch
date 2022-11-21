@@ -42,8 +42,8 @@ class SSD_mobilenet(nn.Module):
         self.size = size
 
         # SSD network
-        self.base_net = base_net
-        self.extras = extras
+        self.base_net = nn.ModuleList(base_net)
+        self.extras = nn.ModuleList(extras)
 
         self.conf = nn.ModuleList(head[0])
         if self.head_type == 'BB':
