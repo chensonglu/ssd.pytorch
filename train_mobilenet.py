@@ -221,7 +221,7 @@ def train():
     data_loader = data.DataLoader(dataset, args.batch_size,
                                   num_workers=args.num_workers,
                                   shuffle=True, collate_fn=detection_collate,
-                                  pin_memory=True)
+                                  pin_memory=True, generator=torch.Generator(device='cuda'))
 
     lr = args.lr
     # create batch iterator
