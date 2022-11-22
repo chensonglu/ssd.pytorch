@@ -130,7 +130,7 @@ def train():
     # optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=args.momentum,
     #                       weight_decay=args.weight_decay)
     optimizer = optim.Adam(params, lr=args.lr, betas=(0.9, 0.999),
-                          weight_decay=args.weight_decay)
+                           weight_decay=args.weight_decay)
     det_criterion = MultiBoxLoss(cfg['num_classes'], 0.5, True, 0, True, 3, 0.5,
                              False, args.cuda, loss_name=cfg['BB_losstype'])
     rec_criterion = torch.nn.CrossEntropyLoss()
@@ -180,24 +180,23 @@ def train():
 
         # load train data
         try:
-            images, targets, labels, lengths = next(batch_iterator)
+            images, targets, labels = next(batch_iterator)
         except StopIteration:
             batch_iterator = iter(data_loader)
-            images, targets, labels, lengths = next(batch_iterator)
+            images, targets, labels = next(batch_iterator)
 
         if args.cuda:
             images = Variable(images, requires_grad=False).cuda()
             with torch.no_grad():
-                targets = Variable(targets.cuda())
-            labels = Variable(labels, requires_grad=False).cuda()
+                targets = Variable(targets).cuda()
+                labels = Variable(labels).cuda()
         else:
             images = Variable(images, requires_grad=False)
             with torch.no_grad():
                 targets = Variable(targets)
-            labels = Variable(labels, requires_grad=False)
-        labels = labels.reshape(args.batch_size, 7) + 1
-        labels = torch.cat([labels, torch.zeros(args.batch_size).reshape(args.batch_size, 1)], dim=1).long()
-        # print("labels: ", labels.shape)
+                labels = Variable(labels)
+        # TODO: multi license plates
+        labels = labels.squeeze(1)
         # forward
         t0 = time.time()
         det_out, rec_out = net(images, targets)
@@ -209,7 +208,7 @@ def train():
         for (i, item) in enumerate(rec_out):
             item = item.squeeze()
             gt = labels[:,i]
-            cost_item = rec_criterion(item, gt) 
+            cost_item = rec_criterion(item, gt)
             loss_rec += cost_item
         loss = loss_c + loss_loc + loss_rec
         loss.backward()
