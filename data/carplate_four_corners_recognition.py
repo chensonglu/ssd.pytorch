@@ -175,7 +175,7 @@ class CARPLATE_FOUR_CORNERS_RECOGNITIONDetection(data.Dataset):
                 img = img[:, :, (2, 1, 0)]
                 # img = img.transpose(2, 0, 1)
                 target = np.hstack((boxes, np.expand_dims(labels, axis=1)))
-        return torch.from_numpy(img).permute(2, 0, 1), target, height, width, number_ids
+        return torch.from_numpy(img).permute(2, 0, 1), target, height, width, np.array(number_ids)
         # return torch.from_numpy(img), target, height, width
 
     def pull_image(self, index):

@@ -184,17 +184,17 @@ def train():
             images, targets, labels = next(batch_iterator)
 
         if args.cuda:
-            images = Variable(images.cuda(), requires_grad=False)
+            images = Variable(images, requires_grad=False).cuda()
             with torch.no_grad():
-                targets = [Variable(ann.cuda()) for ann in targets]
-            labels = Variable(labels.cuda(), requires_grad=False)
+                targets = Variable(targets).cuda()
+                labels = Variable(labels).cuda()
         else:
             images = Variable(images, requires_grad=False)
             with torch.no_grad():
-                targets = [Variable(ann) for ann in targets]
-            labels = Variable(labels, requires_grad=False)
-        # labels = labels.reshape(args.batch_size, 7) + 1
-        # labels = torch.cat([labels, torch.zeros(args.batch_size).reshape(args.batch_size, 1)], dim=1).long()
+                targets = Variable(targets)
+                labels = Variable(labels)
+        # TODO: multi license plates
+        labels = labels.squeeze(1)
         # forward
         t0 = time.time()
         det_out, rec_out = net(images, targets)
