@@ -220,7 +220,7 @@ def do_python_eval(output_dir='output', use_12=False, object_size='all'):
                 metrics, map = eval_AP(
                     filename, annopath, imgsetpath.format(set_type), cls, cachedir, cal_type,
                     use_12_metric=use_12_metric, object_size=object_size)
-                save_name = "_".join(args.trained_model.split('/')[1:]) + '-' + args.voc_root.split('/')[-2] + '-' + cal_type + '-' + 'coco'
+                save_name = "_".join(args.trained_model.split('/')[1:]) + '-' + os.path.basename(args.voc_root) + '-' + cal_type + '-' + 'coco'
                 with open(os.path.join(output_dir, cls + '-' + save_name + '-pr.pkl'), 'wb') as f:
                     pickle.dump({'metrics': metrics}, f)
                 if cal_type == 'bbox':
@@ -384,17 +384,17 @@ object_size: all, small, medium, large, finished
 
 
 def decode_list(t):
-        texts = []
-        for i in range(t.shape[0]):
-            t_item = t[i,:]
-            char_list = []
-            for i in range(t_item.shape[0]):
-                if t_item[i] > 0:
-                    char_list.append(CHARS[t_item[i]])
+    texts = []
+    for i in range(t.shape[0]):
+        t_item = t[i,:]
+        char_list = []
+        for i in range(t_item.shape[0]):
+            if t_item[i] > 0:
+                char_list.append(CHARS[t_item[i]])
 
-            texts.append(''.join(char_list))
+        texts.append(''.join(char_list))
 
-        return texts
+    return texts
 
 
 def test_net(save_folder, net, cuda, dataset, im_size=300, object_size='all'):
@@ -417,9 +417,8 @@ def test_net(save_folder, net, cuda, dataset, im_size=300, object_size='all'):
     for i in range(num_images):
         # if i < 5325:
         #     continue
-        im, gt, h, w, labels, lengths = dataset.pull_item(i)
-        targets = []
-        targets.append(np.array(labels))
+        im, gt, h, w, labels = dataset.pull_item(i)
+        targets = labels
         if gt.shape[0] < 1:
             continue
         x = Variable(im.unsqueeze(0))
@@ -431,7 +430,7 @@ def test_net(save_folder, net, cuda, dataset, im_size=300, object_size='all'):
         detect_time = _t['im_detect'].toc(average=False)
 
         _, preds_all = rec_out.max(2)
-        l = decode_list(preds_all.data-1)
+        l = decode_list(preds_all.data)
         t = decode_list(torch.tensor(targets))
         lev_distance = Levenshtein.distance(l[0], t[0])
         count_all += 1
@@ -488,7 +487,7 @@ def test_net(save_folder, net, cuda, dataset, im_size=300, object_size='all'):
             total_time += detect_time
     print("average time: " + str(total_time / (num_images-1) * 1000) + ' ms')
     print("FPS: " + str(1000.0 / (total_time / (num_images-1) * 1000.0)))
-    log.l.info("_".join(args.trained_model.split('/')[1:]) + '-' + args.voc_root.split('/')[-2])
+    log.l.info("_".join(args.trained_model.split('/')[1:]) + '-' + os.path.basename(args.voc_root))
     log.l.info('accuracy: ' + str(count_right) + '/' + str(count_all) + '=' + str(1.0*count_right/count_all))
     log.l.info('accuracy_ed1: ' + str(count_ed1) + '/' + str(count_all) + '=' + str(1.0*count_ed1/count_all))
 
