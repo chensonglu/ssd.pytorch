@@ -87,7 +87,7 @@ def calculate_AP(ovthresh, recs, detpath, classname, imagenames, cal_type='bbox'
         for imagename in imagenames:
             R = [obj for obj in recs[imagename] if obj['name'] == classname]
             GT_bbox = np.array([x['bbox'] for x in R])
-            GT_append = np.zeros((GT_bbox.shape[0], 3), dtype=np.int)
+            GT_append = np.zeros((GT_bbox.shape[0], 3), dtype=np.int32)
             GTs = np.hstack((GT_bbox, GT_append))
             if imagename not in preds_dic.keys():
                 preds = np.array([[]])
@@ -111,7 +111,7 @@ def calculate_F1_score(ovthresh, recs, detpath, classname, cal_type='fc'):
     for imagename in recs.keys():
         R = [obj for obj in recs[imagename] if obj['name'] == classname]
         four_corners = np.array([x['four_corners'] for x in R])
-        difficult = np.array([x['difficult'] for x in R]).astype(np.bool)
+        difficult = np.array([x['difficult'] for x in R]).astype(np.bool_)
         det = [False] * len(R)
         npos = npos + sum(~difficult)
         class_recs[imagename] = {'four_corners': four_corners,

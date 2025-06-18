@@ -6,7 +6,7 @@ from .car_carplate_offset import CAR_CARPLATE_OFFSETDetection, CAR_CARPLATE_OFFS
 from .carplate_four_corners import CARPLATE_FOUR_CORNERSDetection, CARPLATE_FOUR_CORNERSAnnotationTransform, CARPLATE_FOUR_CORNERS_CLASSES, CARPLATE_FOUR_CORNERS_ROOT
 from .carplate_four_corners_recognition import CARPLATE_FOUR_CORNERS_RECOGNITIONDetection, CARPLATE_FOUR_CORNERS_RECOGNITIONAnnotationTransform, CARPLATE_FOUR_CORNERS_RECOGNITION_CLASSES, CARPLATE_FOUR_CORNERS_RECOGNITION_ROOT
 from .car_carplate_two_stage_end2end import CAR_CARPLATE_TWO_STAGE_END2ENDDetection, CAR_CARPLATE_TWO_STAGE_END2ENDAnnotationTransform, CAR_CARPLATE_TWO_STAGE_END2END_CLASSES, CAR_CARPLATE_TWO_STAGE_END2END_ROOT
-from .coco import COCODetection, COCOAnnotationTransform, COCO_CLASSES, COCO_ROOT, get_label_map
+# from .coco import COCODetection, COCOAnnotationTransform, COCO_CLASSES, COCO_ROOT, get_label_map
 from .config import *
 import torch
 import cv2
@@ -49,11 +49,14 @@ def detection_recognition_collate(batch):
     targets = []
     imgs = []
     labels = []
+    lengths = []
     for sample in batch:
         imgs.append(sample[0])
         targets.append(torch.FloatTensor(sample[1]))
-        labels.append(torch.LongTensor(sample[2]))
-    return torch.stack(imgs, 0), torch.stack(targets, 0), torch.stack(labels, 0)
+        labels.extend(sample[2])
+        lengths.append(sample[2].shape[1])
+    labels = np.asarray(labels).flatten().astype(np.int)
+    return torch.stack(imgs, 0), torch.stack(targets, 0), torch.from_numpy(labels), lengths
 
 
 def base_transform(image, size, mean):

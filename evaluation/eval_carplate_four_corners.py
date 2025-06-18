@@ -193,7 +193,7 @@ def write_voc_results_file(all_boxes, dataset):
         with open(filename, 'wt') as f:
             for im_ind, index in enumerate(dataset.ids):
                 dets = all_boxes[cls_ind+1][im_ind]
-                if dets == []:
+                if dets is None or len(dets) == 0:
                     continue
                 # the VOCdevkit expects 1-based indices
                 for k in range(dets.shape[0]):
